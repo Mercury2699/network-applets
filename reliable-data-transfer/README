@@ -1,0 +1,26 @@
+Functionality:
+I implemented Go-Back-N first, and then the Selective Repeat. 
+The gbnSender and gbnReceiver is able to transfer file reliably through the unreliable channel simulator. 
+The srSender and srReceiver is able to transfer file reliably through the unreliable channel simulator. 
+
+Both implementations of senders and receivers were tested using these setup:
+./srSender.sh 200 <fileSent>; ./channel 100 0 0 1; ./srReceiver.sh <fileRecvd> 
+./srSender.sh 500 <fileSent>; ./channel 300 0.3 0 1; ./srReceiver.sh <fileRecvd> 
+./srSender.sh 500 <fileSent>; ./channel 300 0.3 1 1; ./srReceiver.sh <fileRecvd> 
+./srSender.sh 200 <fileSent>; ./channel 100 0.5 0 1; ./srReceiver.sh <fileRecvd> 
+
+Files tested includes:
+the channel emulator binary file, 
+my 203-Kilobyte CS350 A3 submission tgz binary, 
+this text-based ReadMe file that you are reading.
+
+So the senders and receivers are able transmit both text files and non-ASCII binary files correctly. 
+The reliability is verified with diff <fileSent> <fileRecvd>.
+
+Design choices:
+If the file trying to send is an empty file, the sender will send EOT directly and exit.
+Since UDP packets has checksum built in, I do not consider any ciurcumstance where the arrived UDP packet is corrupt.
+The Sender prepares all the packets it needs to send first. So it may not be memory optimized for large files. 
+The sequence number is currently unbounded. I haven't implemented the 0...255 limit. 
+The solution is only tested working on ubuntu1804-008 and 004. I experienced issue where the channel does not receive any ACK on 002. 
+Make clean deletes channelInfo, recvInfo and __pycache__. It does not remove transmitted files. 
