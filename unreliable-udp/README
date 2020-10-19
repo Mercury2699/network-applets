@@ -1,0 +1,76 @@
+This is written in python. 
+
+Note:
+
+If the virtual file size specified in the sender program argument 4 is the number 0, the sender will infinitely send packets to the receiver. You will have to manually terminate the program. This is designed to facilitate timeout testing. 
+For the virtual file size, the program will generate groups of alphabet starting from A ascii ordered of length payload size, and increase by one for each payload it sends out. This way we can deduce which packet got lost. 
+
+Messages:
+
+The first packet the sender sends out contains only an int. This is the payload size that was specified by the user in the command-line argument. 
+Then the sender starts to transmit the content of the file, if specified. 
+The last packet contains only the empty string deemed as the end of the transmission by the receiver program, which causes the receiver to terminate upon receiving. 
+
+Experiment:
+1.
+I have experimented with my Makefile (123 bytes), my receiver.py source code (1244 bytes), my CS350 A3 submission tgz (203514 bytes) and a generated 10MB file. Using packet sizes of 128, 512 and 1024. 
+I observed no packet loss with all three packet sizes with my Makefile and receiver source code. But I start to notice packet loss for CS350 submission and the randomly generated 10MB file, since the final bytes received printed out by the receiver was smaller than the transmitted file size, also received number of packets is smaller than that sent out. And my CS350 submission file cannot be extracted properly. So it is easier to have packet loss when the file is large. It is also easier to have packet losses when the message size is smaller. Because smaller message size means more packets getting transmitted. 
+2.
+(a)
+To show that the receiver program immediately terminates after receiving the last message, I use a very long timeout for the receiver, e.g. python3 receiver.py recvfile 100000000000, and then transfer an empty file to the receiver. It can be observed that the receiver terminates and prints out 2 packets received, which is the first and the last packet I have programmed in. 
+(b)
+To show that the receiver terminates after timeout, I have designed a feature mentioned above. I can set a short timeout for the receiver e.g. python3 receiver.py recvfile 1000, and then use the sender to infinitely send packets to the receiver: python3 sender.py <host> <port> 16 0. I can see that my receiver terminates and prints out the stats after I run the sender for 1 second. 
+3.
+
+Here are my runs holding filesize still, and changing the paylaod size:
+
+j247he@ubuntu1804-002:~/cs456/unreliable-udp$ time python3 sender.py ubuntu1804-004 35642 16 ../../cs350-os161/os161kernA3.tgz 
+12722 203552
+
+real	0m0.115s
+user	0m0.051s
+sys	0m0.064s
+
+j247he@ubuntu1804-002:~/cs456/unreliable-udp$ time python3 sender.py ubuntu1804-004 35642 128 ../../cs350-os161/os161kernA3.tgz 
+1592 203664
+
+real	0m0.053s
+user	0m0.037s
+sys	0m0.016s
+
+j247he@ubuntu1804-002:~/cs456/unreliable-udp$ time python3 sender.py ubuntu1804-004 35642 2048 ../../cs350-os161/os161kernA3.tgz 
+102 206864
+
+real	0m0.036s
+user	0m0.032s
+sys	0m0.004s
+
+Note that a combination of payload size 16 bytes and file size 203514 bytes results in a sys times 0.064s, which is larger than 0.050s. 
+
+I can see that for bigger payload sizes, the sys time decreases. 
+
+
+
+Here are my runs holding the payload size still, changing the filesize:
+
+j247he@ubuntu1804-002:~/cs456/unreliable-udp$ time python3 sender.py ubuntu1804-004 35642 128 port
+3 272
+real	0m0.061s
+user	0m0.044s
+sys	0m0.005s
+
+j247he@ubuntu1804-002:~/cs456/unreliable-udp$ time python3 sender.py ubuntu1804-004 35642 128 receiver.py
+12 1424
+real	0m0.057s
+user	0m0.030s
+sys	0m0.009s
+
+j247he@ubuntu1804-002:~/cs456/unreliable-udp$ time python3 sender.py ubuntu1804-004 35642 128 ../../cs350-os161/os161kernA3.tgz 
+1592 203664
+real	0m0.052s
+user	0m0.030s
+sys	0m0.022s
+
+I can see that the systime is larger for larger files. 
+
+These two trends means that that larger file sizes and smaller message sizes increases the amount of system calls, causing the program to spend more time in kernel mode. 
