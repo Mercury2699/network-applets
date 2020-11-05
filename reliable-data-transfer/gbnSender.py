@@ -84,12 +84,12 @@ while sendBase < packetsMade:
         if(sendBase == nextSeqNum):
             signal.alarm(int(timeout/1000))
             nextSeqNum += 1
-        time.sleep(timeout/1000)
+        # time.sleep(timeout/1000)
     # else:
     #     refusedata
 
     print("Syscall: select()")
-    readable, writable, exceptional = select.select([BSocket],[BSocket],[BSocket],timeout/1000)
+    readable, writable, exceptional = select.select([BSocket],[],[BSocket],timeout/1000)
 
     if readable:
         for r in readable:
@@ -113,7 +113,7 @@ while sendBase < packetsMade:
                         signal.alarm(int(timeout/1000))
                     else:
                         signal.alarm(int(timeout/1000)) #start timer
-                readable, writable, exceptional = select.select([BSocket],[BSocket],[BSocket],timeout/1000)
+                readable, writable, exceptional = select.select([BSocket],[],[BSocket],timeout/1000)
 
 #Make and send EOT packet and terminates
 EOTpacket = packet.makePacket(2,12,packetsMade)
