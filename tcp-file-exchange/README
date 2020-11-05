@@ -1,0 +1,5 @@
+Functionality:
+
+Design choices:
+
+In the client implementation, an empty key is still valid since the control string will be padded with null terminator. 
