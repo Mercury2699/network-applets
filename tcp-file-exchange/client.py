@@ -50,21 +50,24 @@ elif control[:1] == 'P' and len(sys.argv) == 7: #Uploader
     filename = sys.argv[4]
     size = int(sys.argv[5])
     wait = int(sys.argv[6])
+    bytesSent = 0
     if (filename.isdigit()): # Virtual File Size
         VFS = int(filename)
         fullpacks = VFS // size
         lastpack = VFS % size
         for i in range(1,fullpacks):
             generateStr = (chr(ord('A')+i))*size
-            clientSocket.send(generateStr.encode())
+            bytesSent += clientSocket.send(generateStr.encode())
+            time.sleep(wait/1000)
         generateStr = (chr(ord('z')))*lastpack
-        clientSocket.send(generateStr.encode())
+        bytesSent += clientSocket.send(generateStr.encode())
     else: # Actual filename string
         filetosend = open(filename, "rb")
         data = filetosend.read(size)
         while (data):
-            clientSocket.send(data)
+            bytesSent += clientSocket.send(data)
             data = filetosend.read(size)
+            time.sleep(wait/1000)
         filetosend.close()
     # shutdown and close after sending 
     clientSocket.shutdown(socket.SHUT_WR)
@@ -75,7 +78,13 @@ elif control[:1] == 'G' and len(sys.argv) == 6: #Downloader
     print("Downloader sent the control and key.")
     filename = sys.argv[4]
     size = int(sys.argv[5])
-    
+    bytesRcvd = 0
+    outputfile = open(filename, "wb")
+    recv = clientSocket.recv(size)
+    while(len(recv) > 0):
+        outputfile.write(recv)
+        recv = clientSocket.recv(size)
+    outputfile.close()
     clientSocket.close()
 else:
     print("Invalid Control code or missing arguments. ")
