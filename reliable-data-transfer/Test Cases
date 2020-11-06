@@ -1,0 +1,99 @@
+Test environment:
+ubuntu1804, open 3 shells, one for the sender, one for the receiver, one for the channel.
+
+Test cases:
+# 1) single packet
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=500
+./srReceiver copy.dat
+./channel 0 0 1 1
+./srSender 10 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+gbn:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=500
+./gbnReceiver copy.dat
+./channel 0 0 1 1
+./gbnSender 10 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+# 2) multiple packets, last one < 500 bytes
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=750
+./srReceiver copy.dat
+./channel 0 0 1 1
+./srSender 10 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+gbn:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=750
+./gbnReceiver copy.dat
+./channel 0 0 1 1
+./gbnSender 10 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+# 3) many packets, sequence number wrap around
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=500000
+./srReceiver copy.dat
+./channel 0 0 1 1
+./srSender 10 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+gbn:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=500000
+./gbnReceiver copy.dat
+./channel 0 0 1 1
+./gbnSender 10 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+# 4) high channel loss rate -> sender should show *approx* 80 SEND attempts (for sr)
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=10000
+./srReceiver copy.dat
+./channel 0 0.5 1 1
+./srSender 5 orig.dat | fgrep "PKT SEND" | wc
+diff orig.dat copy.dat || echo "ERROR"
+gbn
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=10000
+./gbnReceiver copy.dat
+./channel 0 0.5 1 1
+./gbnSender 5 orig.dat | fgrep "PKT SEND" | wc
+diff orig.dat copy.dat || echo "ERROR"
+# 5) high delay, agressive timeout -> sender should show 1000-1200 SEND attempts (for sr)
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=10000
+./srReceiver copy.dat
+./channel 200 0 1 1
+./srSender 1 orig.dat | fgrep "PKT SEND" | wc
+diff orig.dat copy.dat || echo "ERROR"
+gbn:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=10000
+./gbnReceiver copy.dat
+./channel 200 0 1 1
+./gbnSender 1 orig.dat | fgrep "PKT SEND" | wc
+diff orig.dat copy.dat || echo "ERROR"
+# 6) moderate scenario -> sender should show *approx* 350 SEND attempts (for sr)
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=100000
+./srReceiver copy.dat
+./channel 10 0.1 1 1
+./srSender 10 orig.dat | fgrep "PKT SEND" | wc
+diff orig.dat copy.dat || echo "ERROR"
+gbn:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=100000
+./gbnReceiver copy.dat
+./channel 10 0.1 1 1
+./gbnSender 10 orig.dat | fgrep "PKT SEND" | wc
+diff orig.dat copy.dat || echo "ERROR"
+# 7) stress testing -> should complete
+sr:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=100000
+./srReceiver copy.dat
+./channel 999 0.5 1 1
+time ./srSender 1 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+gbn:
+rm -f copy.dat; dd if=/dev/urandom of=orig.dat count=1 bs=100000
+./gbnReceiver copy.dat
+./channel 999 0.5 1 1
+time ./gbnSender 1 orig.dat
+diff orig.dat copy.dat || echo "ERROR"
+Notes:
+GBN 4), 5), and 6) should show roughly 10x SEND attempts compared to SR.  If the number is significantly higher for GBN - in particular in cases 4) and 6) - this is possibly caused by the Go-Back-N implementation retransmitting the whole window when receiving an ACK out of sequence.  However, Go-Back-N should only retransmit when a timeout expires.
+For test case #7, the time output should show a significant wait/block time, i.e.:
+real >> (user + sys)
