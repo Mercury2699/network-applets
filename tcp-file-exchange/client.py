@@ -48,44 +48,53 @@ elif control[:1] == 'P' and len(sys.argv) == 7: #Uploader
     clientSocket.send(control.encode())
     print("Uploader sent the control and key.")
     filename = sys.argv[4]
-    size = int(sys.argv[5])
+    size = int(sys.argv[5])# retrieve info
     wait = int(sys.argv[6])
     bytesSent = 0
     if (filename.isdigit()): # Virtual File Size
         VFS = int(filename)
         fullpacks = VFS // size
         lastpack = VFS % size
-        for i in range(1,fullpacks):
-            generateStr = (chr(ord('A')+i))*size
+        for i in range(1,fullpacks): # generates A to Z according to total size
+            generateStr = (chr(ord('A')+(i % 26)))*size
             bytesSent += clientSocket.send(generateStr.encode())
             time.sleep(wait/1000)
-        generateStr = (chr(ord('z')))*lastpack
+        generateStr = (chr(ord('z')))*lastpack # end with "zzz..." of length last packet size
         bytesSent += clientSocket.send(generateStr.encode())
     else: # Actual filename string
-        filetosend = open(filename, "rb")
+        filetosend = open(filename, "rb") # read bytes in the file
         data = filetosend.read(size)
-        while (data):
+        while (data): #send all of them 
             bytesSent += clientSocket.send(data)
             data = filetosend.read(size)
             time.sleep(wait/1000)
         filetosend.close()
+    print("Uploader sent all file contents.")
     # shutdown and close after sending 
     clientSocket.shutdown(socket.SHUT_WR)
-    clientSocket.close()
+    response = clientSocket.recv(4096)
+    print("Uploader terminating.")
+
+    # clientSocket.close()
 elif control[:1] == 'G' and len(sys.argv) == 6: #Downloader
     clientSocket.connect((host,port))
     clientSocket.send(control.encode())
     print("Downloader sent the control and key.")
-    filename = sys.argv[4]
+    filename = sys.argv[4] # retrieve info
     size = int(sys.argv[5])
     bytesRcvd = 0
-    outputfile = open(filename, "wb")
-    recv = clientSocket.recv(size)
+    recv = clientSocket.recv(size) # blocking recv()s
+    wrote = False
+    if len(recv) > 0:
+        outputfile = open(filename, "wb") # create file
+        wrote = True
     while(len(recv) > 0):
         outputfile.write(recv)
         recv = clientSocket.recv(size)
-    outputfile.close()
+    if wrote:
+        outputfile.close()
     clientSocket.close()
+    print("Downloader received and terminates.")
 else:
     print("Invalid Control code or missing arguments. ")
     sys.exit(0)

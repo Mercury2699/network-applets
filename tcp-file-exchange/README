@@ -1,5 +1,16 @@
 Functionality:
 
+The server accepts new clients with valid control keys. 
+It blocks on select() syscalls waiting for any incoming connections or packets from paired clients. 
+In each iteration of loop, it calls select() only once. 
+In each loop depending on what's returned in the readable, it performs only one action once for each item: accept or recv(). 
+The clients can send or receive files correctly via TCP connections forwarded by the server. Verified with diff. 
+
 Design choices:
 
 In the client implementation, an empty key is still valid since the control string will be padded with null terminator. 
+The client always read or write required file if it has established a connection with server. 
+The downloader client would only create file for write if it has heard back from server after connection was accepted. 
+If the filename in uploader is an integer, it generates content by creating packets wiht AAA...A to ZZZ...Z of length sendsize.
+The server will send to the Uploader client a final packet to let it know it can terminate. 
+The server always tries to receive 4096 bytes of data from Uploader if they are paired and readable. 
