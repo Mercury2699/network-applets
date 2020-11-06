@@ -24,7 +24,10 @@ portfile.write(str(serverSocket.getsockname()[1])+"\n")
 portfile.close()
 
 while 1:
-    readable, writable, exceptional = select.select([serverSocket],[],[serverSocket])
+    readlist = [serverSocket]
+    for p in paired:
+        readlist.append(p[0])
+    readable, _, exce = select.select(readlist,[],readlist)
 
     for r in readable:
         if r is serverSocket: # handle new connections
@@ -34,7 +37,14 @@ while 1:
             if (recvdControl[:1] == b'F'): # TERMINATOR
                 print("I received termination request.")
                 toTerminate = True
+                connectionSocket.shutdown(socket.SHUT_RD)
                 connectionSocket.close()
+                if not paired and toTerminate:
+                    for n in newDownloaders:
+                        n[0].close()
+                    for n in newUploaders:
+                        n[0].close()
+                sys.exit(0)
             elif (recvdControl[:1] == b'G'): # New Downloader
                 print("New Downloader")
                 key = recvdControl[-8:]
@@ -61,7 +71,32 @@ while 1:
                     newUploaders.append((connectionSocket,key))
         else:
             data = r.recv(1024)
-            print(data)
+            corresponder = None
+            print(len(data))
+            for p in paired:
+                if p[0] is r:
+                    corresponder = p[1]
+            if corresponder is None:
+                print("ERROR: Received data from not matched pair!!!")
+            while len(data) > 0:
+                corresponder.send(data)
+                data = r.recv(1024)
+                print(len(data))
+            print("Transfer finished, closing a pair of client. ")
+            r.close()
+            corresponder.close()
+            for p in paired:
+                if p[0] is r:
+                    paired.remove(p)
+                    break
+            if not paired and toTerminate:
+                for n in newDownloaders:
+                    n[0].close()
+                for n in newUploaders:
+                    n[0].close()
+                sys.exit(0)
 
+            
+            
 
 
