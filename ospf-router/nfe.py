@@ -9,6 +9,7 @@ import signal
 import argparse
 # Authored by Alex Ionita taionita@uwaterloo.ca
 
+
 """                                ___
                                ,-""   `.
                              ,'  _   e )`-._
@@ -33,9 +34,10 @@ import argparse
                     oh, hello there
 """
 
+
 # first epoch is the initial time given for all vrouters to converge (first epoch includes init phase and forwarding phase)
 # every subsequent epoch, each `CONVERGENCE_EPOCH_TIME` seconds long, corresponds to one network failure scenario
-CONVERGENCE_EPOCH_TIME = 5  # length of an epoch in seconds
+CONVERGENCE_EPOCH_TIME = 10  # length of an epoch in seconds
 
 
 class MessageType:
@@ -340,9 +342,6 @@ def parse_args():
     return topology, failures, is_log_msg
 
 
-def log_message(timestamp_sec, message, is_connected):
-    with open("nfe.lsa", 'a') as fd:
-        fd.write("[{}],timestamp_sec:{},".format(is_connected, timestamp_sec) + str(message) + "\n")
 
 
 def log_init_messages(router_id):
@@ -430,10 +429,15 @@ def termination_phase(sock, vrouter_clients):
     sock.close()
 
 
+def log_message(timestamp_sec, message, is_connected):
+    with open("nfe.log", 'a') as fd:
+        fd.write("[{}],timestamp_sec:{},".format(is_connected, timestamp_sec) + str(message) + "\n")
+
+
 def forwarding_phase(sock, topology, failures, vrouter_clients, is_log_msg):
     # Forwarding phase
     if is_log_msg:
-        with open("nfe.lsa", 'w') as fd:
+        with open("nfe.log", 'w') as fd:
             fd.write("")
     print("Emulator forwarding traffic between virtual routers")
 
@@ -549,3 +553,4 @@ def listen_loop(topology, failures, is_log_msg):
 
 if __name__ == '__main__':
     main()
+
