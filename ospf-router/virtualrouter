@@ -1,0 +1,32 @@
+#!/usr/bin/python3
+
+from socket import *
+import sys
+
+seqNum = 0
+
+
+# check arguments
+if (len(sys.argv) != 4):
+    print("Usage: virtualrouter <nfe-ip> <nfe-port> <virtual-router-id> ")
+    sys.exit(0)
+
+if (not sys.argv[2].isnumeric() or not sys.argv[3].isnumeric()):
+    print("<nfe-port> or <virtual-router-id> must be a number ")
+    sys.exit(0)
+
+#extract info from args
+serverName = sys.argv[1]
+serverPort = int(sys.argv[2])
+routerId = int(sys.argv[3])
+
+# make new socket
+addr = (serverName, serverPort)
+try:
+    nfeSocket = socket(AF_INET, SOCK_DGRAM)
+except error:
+    print("Cannot create socket. ")
+    sys.exit(1)
+
+
+
