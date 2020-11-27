@@ -4,6 +4,8 @@ import sys, socket, select
 
 seqNum = 0
 topoview = []
+recvdAds = []
+myNeighbor = []
 
 # check arguments
 if (len(sys.argv) != 4):
@@ -18,6 +20,7 @@ if (not sys.argv[2].isnumeric() or not sys.argv[3].isnumeric()):
 serverName = sys.argv[1]
 serverPort = int(sys.argv[2])
 routerId = int(sys.argv[3])
+recvdAds.append((routerId,seqNum))
 
 # make new socket
 addr = (serverName, serverPort)
@@ -28,19 +31,19 @@ except socket.error:
     sys.exit(1)
 
 #prepare and send init
-tosend = (1).to_bytes(4, byteorder='big') 
+tosend = (1).to_bytes(4, byteorder='big')
 tosend += routerId.to_bytes(4, byteorder='big')
 nfeSocket.sendto(tosend, addr)
 
-while 1:
+while 1: 
     readlist = [nfeSocket]
-    readable, _, exc = select.select(readlist,[],[])
+    readable, _, exc = select.select(readlist,[],[]) #no busy waiting
 
     for r in readable:
         data, addr = r.recvfrom(4096)
-        print(data)
+        # print(len(data))
         packettype = int.from_bytes(data[0:4], byteorder='big')
-        print(packettype)
+        # print(packettype)
         if (packettype == 3): #LSA
             outstring = "RECEIVED:"
             sendID = int.from_bytes(data[4:8], byteorder='big')
@@ -52,34 +55,60 @@ while 1:
             seq = int.from_bytes(data[16:20], byteorder='big')
             outstring += "SEQ("+str(seq)+")"
             numLink = int.from_bytes(data[20:24], byteorder='big')
-            for i in range(numLink):
+            for i in range(numLink): # extract link info
                 nID = int.from_bytes(data[24+i*8:28+i*8], byteorder='big')
                 cost = int.from_bytes(data[28+i*8:32+i*8], byteorder='big')
-                outstring += ",NID("+str(nID)+"),LC(?)"
-                link = ((advID,nID),cost)
-                topoview.append(link)
+                outstring += ",NID("+str(nID)+"),LC("+str(cost)+")"
+                link = ((min(advID,nID),max(advID,nID)),cost)
+                if link not in topoview:
+                    topoview.append(link)
             print(outstring)
+            if (advID,seq) in recvdAds: # drop this LSA packet
+                print("DROPPING")
+                continue
+            else: # mark it as received, update forwarding, send to neighbors
+                recvdAds.append((advID,seq))
+                print("FORWARDING")
+                ### run dijkstra..
+                forwardHead = data[0:4] + routerId.to_bytes(4, byteorder='big') #msg type + sender ID
+                forwardUnchanged = data[12:len(data)]
+                for n in myNeighbor:
+                    forwardDest = n[0].to_bytes(4, byteorder='big') # dest ID
+                    nfeSocket.sendto(forwardHead+forwardDest+forwardUnchanged,addr)
         elif (packettype == 4): #init-reply
-            outstring = "RECEIVED:"
-            print("init reply detected")
+            outstring = "INITD:"
             numLink = data[4:8]
-            print("Received numlink")
             numLink = int.from_bytes(numLink, byteorder='big')
-            print(numLink)
-            for i in range(numLink):
+            for i in range(numLink): # extract link info
                 nID = int.from_bytes(data[8+i*8:12+i*8], byteorder='big')
                 cost = int.from_bytes(data[12+i*8:16+i*8], byteorder='big')
-                print("Received nID and cost")
-                outstring += ",NID("+str(nID)+"),LC("+str(cost)+")"
-                link = ((routerId,nID),cost)
-                topoview.append(link)
-                print(link)
-            print(outstring)
+                myNeighbor.append((nID,cost))
+                outstring += "NID("+str(nID)+")LC("+str(cost)+")"
+                link = ((min(routerId,nID),max(routerId,nID)),cost)
+                if link not in topoview:
+                    topoview.append(link)
+                # print(link, file=sys.stderr)
+            print(outstring, file=sys.stderr)
+            # prepare and send LSAs to my neighbors
+            LSAhead = (3).to_bytes(4, byteorder='big') #Message Type
+            LSAhead += routerId.to_bytes(4, byteorder='big') #sender ID
+            LSAunchanged = routerId.to_bytes(4, byteorder='big') #advID
+            LSAunchanged += seqNum.to_bytes(4, byteorder='big') #sequence
+            LSAunchanged += len(myNeighbor).to_bytes(4, byteorder='big') #numLinks
+            for n in myNeighbor: # populate link info
+                LSAunchanged += n[0].to_bytes(4, byteorder='big') #neighborID
+                LSAunchanged += n[1].to_bytes(4, byteorder='big') #cost
+                # print("POPULATED: {} {}", n[0], n[1])
+            # print("LSA Prepared, now sending", file=sys.stderr)
+            for n in myNeighbor: # send to each neighbor
+                destinationID = n[0].to_bytes(4, byteorder='big') #destination
+                tosend = LSAhead + destinationID + LSAunchanged
+                nfeSocket.sendto(tosend,addr)
+            # print("LSA sent", file=sys.stderr)
+            ### run Dijkstra
         elif (packettype == 5):
-            print(topoview)
+            print(topoview, file=sys.stderr)
+            # print(recvdAds, file=sys.stderr)
+            # print(myNeighbor, file=sys.stderr)
             sys.exit(0)
-
-
-
-
 
