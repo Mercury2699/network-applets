@@ -54,22 +54,29 @@ def linkCost(u,v):
 
 def Dijkstra():
     V = nodes[:] #take a copy of nodes
-    V.remove(routerId) # V is complement of N'
-    D = {} #
+    V.remove(routerId) # V is complement of N' # N' = {u}
+    D = {} # dest -> (next, totalcost)
+    V.sort()
     #Initialization: 
-    # N_ = [routerId] # N' = {u}
     for v in nodes:
-        D[str(v)]=(v,linkCost(routerId,v))
-    # print(D, file=sys.stderr)
+        if v != routerId:
+            D[str(v)]=(v,linkCost(routerId,v))
     #Loop:
-    for w in V: # for w not in N'
-        V.remove(w) # add w to N'
+    while V:
+        current = 0
+        minD = 2147483647
+        for w in V: # for w not in N' s.t Dw is minimum
+            Dw = D[str(w)][1]
+            if minD > Dw: #Dw is minimum
+                minD = Dw
+                current = w
+        V.remove(current) # add w to N'
         for v in V: # for all v not in N'
-            if (isAdjacent(v,w)): #adjacent to w
+            if (isAdjacent(v,current)): #adjacent to w
                 Dv = D[str(v)][1]
-                Dwcwv = D[str(w)][1] + linkCost(w,v)
-                if Dwcwv < Dv:
-                    D[str(v)] = (D[str(w)][0],Dwcwv)
+                Dwcwv = D[str(current)][1] + linkCost(current,v)
+                if Dwcwv < Dv: # min(D(v),D(w)+c(w,v))
+                    D[str(v)] = (D[str(current)][0],Dwcwv)
     return D
 
 def printOutForwardTable(ft):
@@ -133,9 +140,10 @@ while 1:
                 forwardUnchanged = data[12:len(data)]
                 for n in myNeighbor:
                     forwardDest = n[0].to_bytes(4, byteorder='big') # dest ID
-                    outstringDID = "DID("+str(n[0])+"),"
-                    print("FORWARDING:" + outstringSID + outstringDID + outstringTail)
-                    nfeSocket.sendto(forwardHead+forwardDest+forwardUnchanged,addr)
+                    if forwardDest != sendID:
+                        outstringDID = "DID("+str(n[0])+"),"
+                        print("FORWARDING:" + outstringSID + outstringDID + outstringTail)
+                        nfeSocket.sendto(forwardHead+forwardDest+forwardUnchanged,addr)
         elif (packettype == 4): #init-reply
             numLink = data[4:8]
             numLink = int.from_bytes(numLink, byteorder='big')
