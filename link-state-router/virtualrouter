@@ -70,7 +70,6 @@ def Dijkstra():
                 Dwcwv = D[str(w)][1] + linkCost(w,v)
                 if Dwcwv < Dv:
                     D[str(v)] = (D[str(w)][0],Dwcwv)
-    
     return D
 
 def printOutForwardTable(ft):
@@ -82,7 +81,6 @@ def printOutForwardTable(ft):
             FwdTblOutFile.write(linestr+"\n")
             print(linestr)
     FwdTblOutFile.write("\n")
-    
 
 #prepare and send init
 tosend = (1).to_bytes(4, byteorder='big')
@@ -127,8 +125,7 @@ while 1:
             else: # mark it as received, update forwarding, send to neighbors
                 recvdAds.append((advID,seq))
                 outstringSID = "SID(" + str(routerId) +"),"
-                if topochanged:
-                    ### run Dijkstra and print forward table
+                if topochanged: # run Dijkstra and print forward table
                     forwardTable = Dijkstra()
                     printOutForwardTable(forwardTable)
                     topochanged = False
@@ -172,14 +169,11 @@ while 1:
                 tosend = LSAhead + destinationID + LSAunchanged
                 print("SENDING:"+outstringSID+outstringDID+outstringTail)
                 nfeSocket.sendto(tosend,addr)
-            if topochanged:
-                ### Run Dijkstra and print forwarding table
+            if topochanged: # Run Dijkstra and print forwarding table
                 forwardTable = Dijkstra()
                 printOutForwardTable(forwardTable)
                 topochanged = False
         elif (packettype == 5):
-            # forwardTable = Dijkstra()
-            # printOutForwardTable(forwardTable)
             FwdTblOutFile.close()
             sys.exit(0)
 
