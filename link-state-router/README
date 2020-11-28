@@ -5,4 +5,4 @@ The bonus portion is not yet implemented.
 Design choices:
 
 When updating topological view on each router, I keep the vertex pairs to be formatted as ((v1,v2),cost) and sorted so that v1 < v2. In order to avoid duplicate links added into the view. 
-
+For the costs of unreachable nodes, I use INT_MAX, 2147483647, to represent infinity. 

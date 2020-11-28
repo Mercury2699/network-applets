@@ -3,9 +3,12 @@
 import sys, socket, select
 
 seqNum = 0
-topoview = []
-recvdAds = []
-myNeighbor = []
+topoview = {} # (u,v) -> cost
+topochanged = False
+nodes = [] # [nodeIDs]
+recvdAds = [] # (aID, seq)
+myNeighbor = [] # (nID, cost)
+forwardTable = {} # dest -> (next, totalcost)
 
 # check arguments
 if (len(sys.argv) != 4):
@@ -22,6 +25,9 @@ serverPort = int(sys.argv[2])
 routerId = int(sys.argv[3])
 recvdAds.append((routerId,seqNum))
 
+# create forwarding table output file
+FwdTblOutFile = open("forwarding_"+str(routerId)+".out","w")
+
 # make new socket
 addr = (serverName, serverPort)
 try:
@@ -29,6 +35,54 @@ try:
 except socket.error:
     print("Cannot create socket. ")
     sys.exit(1)
+
+def isAdjacent(u, v):
+    if u == v:
+        return False
+    uvpair = (min(u,v),max(u,v))
+    if uvpair in topoview:
+        return True
+    return False
+
+def linkCost(u,v):
+    if u == v:
+        return 0
+    uvpair = (min(u,v),max(u,v))
+    if uvpair in topoview:
+        return topoview[uvpair]
+    return 2147483647
+
+def Dijkstra():
+    V = nodes[:] #take a copy of nodes
+    V.remove(routerId) # V is complement of N'
+    D = {} #
+    #Initialization: 
+    # N_ = [routerId] # N' = {u}
+    for v in nodes:
+        D[str(v)]=(v,linkCost(routerId,v))
+    # print(D, file=sys.stderr)
+    #Loop:
+    for w in V: # for w not in N'
+        V.remove(w) # add w to N'
+        for v in V: # for all v not in N'
+            if (isAdjacent(v,w)): #adjacent to w
+                Dv = D[str(v)][1]
+                Dwcwv = D[str(w)][1] + linkCost(w,v)
+                if Dwcwv < Dv:
+                    D[str(v)] = (D[str(w)][0],Dwcwv)
+    
+    return D
+
+def printOutForwardTable(ft):
+    FwdTblOutFile.write("FORWARDING\n")
+    print("FORWARDING")
+    for entry in ft.items():
+        if entry[0] != str(routerId):
+            linestr = entry[0]+":"+str(entry[1][0])+","+str(entry[1][1])
+            FwdTblOutFile.write(linestr+"\n")
+            print(linestr)
+    FwdTblOutFile.write("\n")
+    
 
 #prepare and send init
 tosend = (1).to_bytes(4, byteorder='big')
@@ -45,70 +99,87 @@ while 1:
         packettype = int.from_bytes(data[0:4], byteorder='big')
         # print(packettype)
         if (packettype == 3): #LSA
-            outstring = "RECEIVED:"
             sendID = int.from_bytes(data[4:8], byteorder='big')
-            outstring += "SID(" + str(sendID) +"),"
+            outstringSID = "SID(" + str(sendID) +"),"
             destID = int.from_bytes(data[8:12], byteorder='big')
-            outstring += "DID("+str(destID)+"),"
+            outstringDID = "DID("+str(destID)+"),"
             advID = int.from_bytes(data[12:16], byteorder='big')
-            outstring += "AID("+str(advID)+"),"
+            outstringTail = "AID("+str(advID)+"),"
             seq = int.from_bytes(data[16:20], byteorder='big')
-            outstring += "SEQ("+str(seq)+")"
+            outstringTail += "SEQ("+str(seq)+")"
             numLink = int.from_bytes(data[20:24], byteorder='big')
+            if advID not in nodes:
+                nodes.append(advID)
             for i in range(numLink): # extract link info
                 nID = int.from_bytes(data[24+i*8:28+i*8], byteorder='big')
                 cost = int.from_bytes(data[28+i*8:32+i*8], byteorder='big')
-                outstring += ",NID("+str(nID)+"),LC("+str(cost)+")"
-                link = ((min(advID,nID),max(advID,nID)),cost)
+                outstringTail += ",NID("+str(nID)+"),LC("+str(cost)+")"
+                link = (min(advID,nID),max(advID,nID))
+                if nID not in nodes:
+                    nodes.append(nID)
                 if link not in topoview:
-                    topoview.append(link)
-            print(outstring)
+                    topochanged = True
+                    topoview[link] = cost
+            print("RECEIVED:" + outstringSID + outstringDID + outstringTail)
             if (advID,seq) in recvdAds: # drop this LSA packet
-                print("DROPPING")
+                print("DROPPING:" + outstringSID + outstringDID + outstringTail)
                 continue
             else: # mark it as received, update forwarding, send to neighbors
                 recvdAds.append((advID,seq))
-                print("FORWARDING")
-                ### run dijkstra..
+                outstringSID = "SID(" + str(routerId) +"),"
+                if topochanged:
+                    ### run Dijkstra and print forward table
+                    forwardTable = Dijkstra()
+                    printOutForwardTable(forwardTable)
+                    topochanged = False
                 forwardHead = data[0:4] + routerId.to_bytes(4, byteorder='big') #msg type + sender ID
                 forwardUnchanged = data[12:len(data)]
                 for n in myNeighbor:
                     forwardDest = n[0].to_bytes(4, byteorder='big') # dest ID
+                    outstringDID = "DID("+str(n[0])+"),"
+                    print("FORWARDING:" + outstringSID + outstringDID + outstringTail)
                     nfeSocket.sendto(forwardHead+forwardDest+forwardUnchanged,addr)
         elif (packettype == 4): #init-reply
-            outstring = "INITD:"
             numLink = data[4:8]
             numLink = int.from_bytes(numLink, byteorder='big')
+            nodes.append(routerId)
             for i in range(numLink): # extract link info
                 nID = int.from_bytes(data[8+i*8:12+i*8], byteorder='big')
                 cost = int.from_bytes(data[12+i*8:16+i*8], byteorder='big')
                 myNeighbor.append((nID,cost))
-                outstring += "NID("+str(nID)+")LC("+str(cost)+")"
-                link = ((min(routerId,nID),max(routerId,nID)),cost)
+                link = (min(routerId,nID),max(routerId,nID))
                 if link not in topoview:
-                    topoview.append(link)
+                    topochanged = True
+                    topoview[link] = cost
+                    nodes.append(nID)
                 # print(link, file=sys.stderr)
-            print(outstring, file=sys.stderr)
             # prepare and send LSAs to my neighbors
             LSAhead = (3).to_bytes(4, byteorder='big') #Message Type
             LSAhead += routerId.to_bytes(4, byteorder='big') #sender ID
             LSAunchanged = routerId.to_bytes(4, byteorder='big') #advID
             LSAunchanged += seqNum.to_bytes(4, byteorder='big') #sequence
             LSAunchanged += len(myNeighbor).to_bytes(4, byteorder='big') #numLinks
+            outstringSID = "SID(" + str(routerId) + "),"
+            outstringTail = "AID("+str(routerId)+"),SEQ("+str(seqNum)+")"
             for n in myNeighbor: # populate link info
                 LSAunchanged += n[0].to_bytes(4, byteorder='big') #neighborID
                 LSAunchanged += n[1].to_bytes(4, byteorder='big') #cost
-                # print("POPULATED: {} {}", n[0], n[1])
+                outstringTail += ",NID("+str(n[0])+"),LC("+str(n[1])+")"
             # print("LSA Prepared, now sending", file=sys.stderr)
             for n in myNeighbor: # send to each neighbor
                 destinationID = n[0].to_bytes(4, byteorder='big') #destination
+                outstringDID = "DID(" + str(n[0]) + "),"
                 tosend = LSAhead + destinationID + LSAunchanged
+                print("SENDING:"+outstringSID+outstringDID+outstringTail)
                 nfeSocket.sendto(tosend,addr)
-            # print("LSA sent", file=sys.stderr)
-            ### run Dijkstra
+            if topochanged:
+                ### Run Dijkstra and print forwarding table
+                forwardTable = Dijkstra()
+                printOutForwardTable(forwardTable)
+                topochanged = False
         elif (packettype == 5):
-            print(topoview, file=sys.stderr)
-            # print(recvdAds, file=sys.stderr)
-            # print(myNeighbor, file=sys.stderr)
+            # forwardTable = Dijkstra()
+            # printOutForwardTable(forwardTable)
+            FwdTblOutFile.close()
             sys.exit(0)
 
