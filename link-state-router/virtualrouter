@@ -12,11 +12,11 @@ forwardTable = {} # dest -> (next, totalcost)
 
 # check arguments
 if (len(sys.argv) != 4):
-    print("Usage: virtualrouter <nfe-ip> <nfe-port> <virtual-router-id> ")
+    print("Usage: virtualrouter <nfe-ip> <nfe-port> <virtual-router-id>", file=sys.stderr)
     sys.exit(0)
 
 if (not sys.argv[2].isnumeric() or not sys.argv[3].isnumeric()):
-    print("<nfe-port> or <virtual-router-id> must be a number ")
+    print("<nfe-port> or <virtual-router-id> must be a number", file=sys.stderr)
     sys.exit(0)
 
 #extract info from args
@@ -33,7 +33,7 @@ addr = (serverName, serverPort)
 try:
     nfeSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 except socket.error:
-    print("Cannot create socket. ")
+    print("Cannot create socket.", file=sys.stderr)
     sys.exit(1)
 
 def isAdjacent(u, v):
@@ -81,12 +81,12 @@ def Dijkstra():
 
 def printOutForwardTable(ft):
     FwdTblOutFile.write("FORWARDING\n")
-    print("FORWARDING")
+    print("FORWARDING", file=sys.stderr)
     for entry in ft.items():
         if entry[0] != str(routerId):
             linestr = entry[0]+":"+str(entry[1][0])+","+str(entry[1][1])
             FwdTblOutFile.write(linestr+"\n")
-            print(linestr)
+            print(linestr, file=sys.stderr)
     FwdTblOutFile.write("\n")
 
 #prepare and send init
